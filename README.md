@@ -36,7 +36,7 @@ https://github.com/user-attachments/assets/78081d13-48a5-4e26-8a31-9624fa97d425
 
 | Requirement | Version | Download |
 |---|---|---|
-| **FFmpeg** | **7.1.x or 8.x** (full build recommended) | [gyan.dev/ffmpeg](https://www.gyan.dev/ffmpeg/builds/) or [ffmpeg.org](https://ffmpeg.org/download.html) |
+| **FFmpeg** | 8.x** (full build recommended) | [gyan.dev/ffmpeg](https://www.gyan.dev/ffmpeg/builds/) or [ffmpeg.org](https://ffmpeg.org/download.html) |
 | **Windows** | 10 or 11 (64-bit) | — |
 
 > **Important:** The full build is required (not essentials) to include all codec libraries.
@@ -99,7 +99,7 @@ ffmpeg -version
 |---|---|
 | Python | 3.12.x |
 | pip | Latest |
-| FFmpeg | 7.1.x or 8.x (on PATH) |
+| FFmpeg | 8.x (on PATH) |
 
 ### Setup
 
