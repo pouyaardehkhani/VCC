@@ -24,13 +24,11 @@ A desktop GUI application for batch video transcoding using **FFmpeg**. VCC prov
 
 ---
 
-## Screenshots
+## Demo
 
-*Launch the application and start converting:*
+https://github.com/pouyaardehkhani/VCC/raw/master/demo/demo.mp4
 
-```
-VideoCodecConverter.exe
-```
+> Click the video above to see VCC in action.
 
 ---
 
