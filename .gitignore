@@ -5,6 +5,7 @@ venv/
 build/
 dist/
 *.spec
+*.zip
 
 # Python cache
 __pycache__/

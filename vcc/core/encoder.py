@@ -3,8 +3,54 @@ FFmpeg encoder worker - runs encoding in a background thread, emitting signals f
 """
 
 import os
+import glob
+import shutil
 import subprocess
 from PyQt6.QtCore import QThread, pyqtSignal
+
+
+def find_ffmpeg() -> str:
+    """
+    Locate ffmpeg executable. Checks:
+    1. System PATH (shutil.which)
+    2. Winget install locations
+    3. Common manual install folders
+    Returns the full path to ffmpeg.exe, or 'ffmpeg' as fallback.
+    """
+    # 1. Check PATH
+    path = shutil.which("ffmpeg")
+    if path:
+        return path
+
+    # 2. Winget shim directory
+    winget_links = os.path.expandvars(
+        r"%LOCALAPPDATA%\Microsoft\WinGet\Links\ffmpeg.exe"
+    )
+    if os.path.isfile(winget_links):
+        return winget_links
+
+    # 3. Winget package directories (version-agnostic glob)
+    winget_pkgs = os.path.expandvars(
+        r"%LOCALAPPDATA%\Microsoft\WinGet\Packages"
+    )
+    for pattern in [
+        os.path.join(winget_pkgs, "Gyan.FFmpeg*", "ffmpeg-*", "bin", "ffmpeg.exe"),
+        os.path.join(winget_pkgs, "Gyan.FFmpeg*", "ffmpeg.exe"),
+    ]:
+        matches = glob.glob(pattern)
+        if matches:
+            return matches[0]
+
+    # 4. Common manual install locations
+    for candidate in [
+        r"C:\ffmpeg\bin\ffmpeg.exe",
+        r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
+        r"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe",
+    ]:
+        if os.path.isfile(candidate):
+            return candidate
+
+    return "ffmpeg"  # fallback — let subprocess raise FileNotFoundError
 
 
 class EncoderWorker(QThread):
@@ -45,6 +91,7 @@ class EncoderWorker(QThread):
         self.subtitle_codec = subtitle_codec
         self.overwrite = overwrite
         self._cancelled = False
+        self._ffmpeg_path = find_ffmpeg()
 
     def cancel(self):
         self._cancelled = True
@@ -57,7 +104,7 @@ class EncoderWorker(QThread):
         scale_filter = f"scale={self.width}:{self.height}"
 
         args = [
-            "ffmpeg",
+            self._ffmpeg_path,
             "-hide_banner",
             ow_flag,
             "-i", src,
