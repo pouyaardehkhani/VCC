@@ -61,6 +61,55 @@ LIGHT_THEME = """
     }
     QComboBox::drop-down {
         border: none;
+        subcontrol-origin: padding;
+        subcontrol-position: center right;
+        width: 20px;
+    }
+    QComboBox::down-arrow {
+        image: none;
+        border-left: 5px solid transparent;
+        border-right: 5px solid transparent;
+        border-top: 6px solid #555;
+        width: 0;
+        height: 0;
+    }
+    QSpinBox::up-button, QDoubleSpinBox::up-button {
+        subcontrol-origin: border;
+        subcontrol-position: top right;
+        width: 20px;
+        border-left: 1px solid #c0c0c0;
+        border-bottom: 1px solid #c0c0c0;
+        background: #f0f0f0;
+    }
+    QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover {
+        background: #e0e0e0;
+    }
+    QSpinBox::down-button, QDoubleSpinBox::down-button {
+        subcontrol-origin: border;
+        subcontrol-position: bottom right;
+        width: 20px;
+        border-left: 1px solid #c0c0c0;
+        border-top: 1px solid #c0c0c0;
+        background: #f0f0f0;
+    }
+    QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
+        background: #e0e0e0;
+    }
+    QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
+        image: none;
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+        border-bottom: 5px solid #555;
+        width: 0;
+        height: 0;
+    }
+    QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
+        image: none;
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+        border-top: 5px solid #555;
+        width: 0;
+        height: 0;
     }
 """
 
@@ -87,24 +136,37 @@ DARK_THEME = """
     QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
         background: #4a4a4a;
         border: 1px solid #555;
+        width: 20px;
     }
     QSpinBox::up-button:hover, QSpinBox::down-button:hover,
     QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {
         background: #5a5a5a;
     }
+    QSpinBox::up-button, QDoubleSpinBox::up-button {
+        subcontrol-origin: border;
+        subcontrol-position: top right;
+        border-bottom: 1px solid #555;
+    }
+    QSpinBox::down-button, QDoubleSpinBox::down-button {
+        subcontrol-origin: border;
+        subcontrol-position: bottom right;
+        border-top: 1px solid #555;
+    }
     QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
         image: none;
-        border-left: 4px solid transparent;
-        border-right: 4px solid transparent;
-        border-bottom: 5px solid #e0e0e0;
-        width: 0; height: 0;
+        border-left: 5px solid transparent;
+        border-right: 5px solid transparent;
+        border-bottom: 6px solid #ccc;
+        width: 0;
+        height: 0;
     }
     QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
         image: none;
-        border-left: 4px solid transparent;
-        border-right: 4px solid transparent;
-        border-top: 5px solid #e0e0e0;
-        width: 0; height: 0;
+        border-left: 5px solid transparent;
+        border-right: 5px solid transparent;
+        border-top: 6px solid #ccc;
+        width: 0;
+        height: 0;
     }
     QPushButton {
         padding: 5px 14px;
@@ -217,13 +279,17 @@ DARK_THEME = """
     QComboBox::drop-down {
         border: none;
         background: #4a4a4a;
+        subcontrol-origin: padding;
+        subcontrol-position: center right;
+        width: 20px;
     }
     QComboBox::down-arrow {
         image: none;
-        border-left: 4px solid transparent;
-        border-right: 4px solid transparent;
-        border-top: 5px solid #e0e0e0;
-        width: 0; height: 0;
+        border-left: 5px solid transparent;
+        border-right: 5px solid transparent;
+        border-top: 6px solid #ccc;
+        width: 0;
+        height: 0;
     }
     QMenuBar {
         background: #333;
