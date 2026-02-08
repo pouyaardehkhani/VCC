@@ -179,7 +179,7 @@ MIT License — free for personal and commercial use.
 
 ## Version History
 
-- **v1.0.2a** — Fixed encoding failure in target bitrate mode (SVT-AV1 VBR), fixed app crash after encoding completes, fixed dark theme white widgets, fixed arrow rendering in themed controls, added dark/light theme toggle in Settings menu
+- **v1.0.2a** — Fixed encoding failure in target bitrate mode (SVT-AV1 VBR), fixed app crash after encoding completes, fixed dark theme white widgets, fixed arrow visibility in themed spinboxes & comboboxes, added dark/light theme toggle in Settings menu
 - **v1.0.2** — Added FPS control (11 presets + custom), video bitrate selector (256K–20M), app icon, fixed window closing during batch processing
 - **v1.0.1** — Added H.266/VVC codec, AV1 encoder comparison guide, FFmpeg 8.x support, auto-detection of FFmpeg in winget/common paths
 - **v1.0.0** — Initial release with full GUI, 7 codecs, batch processing, resolution presets, and standalone EXE

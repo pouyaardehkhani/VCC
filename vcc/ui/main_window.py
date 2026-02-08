@@ -32,6 +32,7 @@ from vcc.ui.themes import (
     LIGHT_FILELIST_STYLE, DARK_FILELIST_STYLE,
     LIGHT_STATUSBAR_STYLE, DARK_STATUSBAR_STYLE,
     LIGHT_FILECOUNT_STYLE, DARK_FILECOUNT_STYLE,
+    get_arrow_stylesheet,
 )
 
 
@@ -591,11 +592,10 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         dark = self._dark_mode
 
-        # Apply global app stylesheet
-        if dark:
-            app.setStyleSheet(DARK_THEME)
-        else:
-            app.setStyleSheet(LIGHT_THEME)
+        # Apply global app stylesheet + arrow images
+        theme = DARK_THEME if dark else LIGHT_THEME
+        arrows = get_arrow_stylesheet(dark)
+        app.setStyleSheet(theme + arrows)
 
         # Menu bar
         self.menuBar().setStyleSheet(DARK_MENUBAR_STYLE if dark else LIGHT_MENUBAR_STYLE)

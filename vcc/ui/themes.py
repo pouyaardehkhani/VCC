@@ -2,6 +2,90 @@
 Theme definitions for VCC - Light and Dark mode stylesheets.
 """
 
+import os
+import tempfile
+
+_arrow_cache: dict[str, str] = {}
+
+
+def _ensure_arrow_images() -> dict[str, str]:
+    """Create small arrow PNG images for use in stylesheets.
+
+    Must be called after QApplication exists (QPixmap requires it).
+    Returns a dict mapping arrow names to file paths (forward-slash).
+    """
+    if _arrow_cache:
+        return _arrow_cache
+
+    from PyQt6.QtGui import QPixmap, QPainter, QColor, QPolygon
+    from PyQt6.QtCore import QPoint, Qt
+
+    arrow_dir = tempfile.mkdtemp(prefix="vcc_arrows_")
+
+    configs = {
+        "dark_down":  ("#333333", "down"),   # dark arrow → light theme
+        "dark_up":    ("#333333", "up"),
+        "light_down": ("#e0e0e0", "down"),   # light arrow → dark theme
+        "light_up":   ("#e0e0e0", "up"),
+    }
+
+    for name, (color, direction) in configs.items():
+        sz = 10
+        pixmap = QPixmap(sz, sz)
+        pixmap.fill(QColor(0, 0, 0, 0))  # transparent
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setBrush(QColor(color))
+        painter.setPen(Qt.PenStyle.NoPen)
+
+        if direction == "down":
+            points = [QPoint(1, 3), QPoint(sz - 1, 3), QPoint(sz // 2, sz - 2)]
+        else:
+            points = [QPoint(1, sz - 3), QPoint(sz - 1, sz - 3), QPoint(sz // 2, 2)]
+
+        painter.drawPolygon(QPolygon(points))
+        painter.end()
+
+        path = os.path.join(arrow_dir, f"{name}.png")
+        pixmap.save(path, "PNG")
+        _arrow_cache[name] = path.replace("\\", "/")
+
+    return _arrow_cache
+
+
+def get_arrow_stylesheet(dark: bool) -> str:
+    """Return a stylesheet fragment that sets arrow images for
+    QComboBox and QSpinBox / QDoubleSpinBox.
+
+    Call *after* QApplication has been created.
+    """
+    paths = _ensure_arrow_images()
+
+    if dark:
+        down = paths["light_down"]
+        up   = paths["light_up"]
+    else:
+        down = paths["dark_down"]
+        up   = paths["dark_up"]
+
+    return f"""
+    QComboBox::down-arrow {{
+        image: url({down});
+        width: 10px;
+        height: 10px;
+    }}
+    QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {{
+        image: url({up});
+        width: 10px;
+        height: 10px;
+    }}
+    QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{
+        image: url({down});
+        width: 10px;
+        height: 10px;
+    }}
+    """
+
 LIGHT_THEME = """
     QWidget {
         font-family: 'Segoe UI', sans-serif;
