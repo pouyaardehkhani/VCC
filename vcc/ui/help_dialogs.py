@@ -333,7 +333,7 @@ class AboutDialog(QDialog):
         browser.setHtml("""
         <div style="text-align:center;">
         <h2>Video Codec Converter (VCC)</h2>
-        <p>Version 1.0.2</p>
+        <p>Version 1.0.2a</p>
         <p>A graphical FFmpeg front-end for batch video transcoding.</p>
         <hr>
         <p style="color:#666;">Powered by FFmpeg<br>

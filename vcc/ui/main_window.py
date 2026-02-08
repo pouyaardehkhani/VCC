@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QProgressBar, QSplitter, QListWidget, QAbstractItemView,
     QToolButton, QSizePolicy, QCheckBox, QApplication, QListWidgetItem,
 )
-from PyQt6.QtCore import Qt, QSize, QEvent
+from PyQt6.QtCore import Qt, QSize, QEvent, QSettings
 from PyQt6.QtGui import QAction, QFont, QIcon
 
 from vcc.core.codecs import CODECS
@@ -20,6 +20,18 @@ from vcc.ui.terminal_widget import TerminalWidget
 from vcc.ui.help_dialogs import (
     CodecHelpDialog, PixelFormatHelpDialog, AudioHelpDialog,
     ResolutionHelpDialog, FPSHelpDialog, BitrateHelpDialog, AboutDialog,
+)
+from vcc.ui.themes import (
+    LIGHT_THEME, DARK_THEME,
+    LIGHT_MENUBAR_STYLE, DARK_MENUBAR_STYLE,
+    LIGHT_GROUP_STYLE, DARK_GROUP_STYLE,
+    LIGHT_HELP_BUTTON_STYLE, DARK_HELP_BUTTON_STYLE,
+    LIGHT_START_BUTTON_STYLE, DARK_START_BUTTON_STYLE,
+    LIGHT_CANCEL_BUTTON_STYLE, DARK_CANCEL_BUTTON_STYLE,
+    LIGHT_PROGRESS_STYLE, DARK_PROGRESS_STYLE,
+    LIGHT_FILELIST_STYLE, DARK_FILELIST_STYLE,
+    LIGHT_STATUSBAR_STYLE, DARK_STATUSBAR_STYLE,
+    LIGHT_FILECOUNT_STYLE, DARK_FILECOUNT_STYLE,
 )
 
 
@@ -69,34 +81,13 @@ class NoScrollComboBox(QComboBox):
 # ---------------------------------------------------------------------------
 # Tooltip button helper
 # ---------------------------------------------------------------------------
-def make_help_button(tooltip_text: str) -> QToolButton:
+def make_help_button(tooltip_text: str, dark: bool = False) -> QToolButton:
     """Create a small '?' button with a rich tooltip."""
     btn = QToolButton()
     btn.setText(" ? ")
     btn.setFixedSize(QSize(22, 22))
     btn.setToolTip(tooltip_text)
-    btn.setStyleSheet("""
-        QToolButton {
-            background: #e0e0e0;
-            border: 1px solid #aaa;
-            border-radius: 11px;
-            font-weight: bold;
-            font-size: 11px;
-            color: #444;
-        }
-        QToolButton:hover {
-            background: #cde4ff;
-            border-color: #4a90d9;
-            color: #1a1a1a;
-        }
-        QToolTip {
-            background-color: #2b2b2b;
-            color: #e0e0e0;
-            border: 1px solid #555;
-            padding: 8px;
-            font-size: 12px;
-        }
-    """)
+    btn.setStyleSheet(DARK_HELP_BUTTON_STYLE if dark else LIGHT_HELP_BUTTON_STYLE)
     return btn
 
 
@@ -171,6 +162,10 @@ class MainWindow(QMainWindow):
         self._worker: EncoderWorker | None = None
         self._codec_param_widgets: list[CodecParamWidget] = []
 
+        # Load theme preference
+        self._settings = QSettings("VCC", "VideoCodecConverter")
+        self._dark_mode = self._settings.value("dark_mode", False, type=bool)
+
         self._build_menu_bar()
         self._build_ui()
         self._connect_signals()
@@ -178,36 +173,14 @@ class MainWindow(QMainWindow):
         # Trigger initial codec param build
         self._on_codec_changed()
 
+        # Apply saved theme
+        self._apply_theme()
+
     # ------------------------------------------------------------------
     # Menu bar
     # ------------------------------------------------------------------
     def _build_menu_bar(self):
         menubar = self.menuBar()
-        menubar.setStyleSheet("""
-            QMenuBar {
-                background: #f5f5f5;
-                border-bottom: 1px solid #d0d0d0;
-                padding: 2px 0;
-            }
-            QMenuBar::item {
-                padding: 4px 12px;
-                border-radius: 4px;
-            }
-            QMenuBar::item:selected {
-                background: #dce9f9;
-            }
-            QMenu {
-                background: #ffffff;
-                border: 1px solid #c0c0c0;
-                padding: 4px 0;
-            }
-            QMenu::item {
-                padding: 6px 30px 6px 20px;
-            }
-            QMenu::item:selected {
-                background: #dce9f9;
-            }
-        """)
 
         # File
         file_menu = menubar.addMenu("File")
@@ -231,6 +204,11 @@ class MainWindow(QMainWindow):
 
         # Settings
         settings_menu = menubar.addMenu("Settings")
+        self._act_dark_mode = QAction("Dark Mode", self)
+        self._act_dark_mode.setCheckable(True)
+        self._act_dark_mode.setChecked(self._dark_mode)
+        settings_menu.addAction(self._act_dark_mode)
+        settings_menu.addSeparator()
         self._act_reset_defaults = QAction("Reset to Defaults", self)
         settings_menu.addAction(self._act_reset_defaults)
 
@@ -275,7 +253,6 @@ class MainWindow(QMainWindow):
 
         # --- Input section ---
         input_group = QGroupBox("Input")
-        input_group.setStyleSheet(self._group_style())
         ig_layout = QVBoxLayout(input_group)
 
         # File selection row
@@ -294,7 +271,6 @@ class MainWindow(QMainWindow):
         file_row.addWidget(self._btn_clear_files)
         file_row.addStretch()
         self._lbl_file_count = QLabel("0 files")
-        self._lbl_file_count.setStyleSheet("color: #666; font-style: italic;")
         file_row.addWidget(self._lbl_file_count)
         ig_layout.addLayout(file_row)
 
@@ -303,26 +279,11 @@ class MainWindow(QMainWindow):
         self._file_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._file_list.setMinimumHeight(80)
         self._file_list.setMaximumHeight(150)
-        self._file_list.setStyleSheet("""
-            QListWidget {
-                border: 1px solid #c0c0c0;
-                border-radius: 4px;
-                background: #fff;
-                font-size: 11px;
-            }
-            QListWidget::item {
-                padding: 2px 4px;
-            }
-            QListWidget::item:selected {
-                background: #cde4ff;
-            }
-        """)
         ig_layout.addWidget(self._file_list)
         top_layout.addWidget(input_group)
 
         # --- Output section ---
         output_group = QGroupBox("Output")
-        output_group.setStyleSheet(self._group_style())
         og_layout = QHBoxLayout(output_group)
         og_layout.addWidget(QLabel("Output Directory:"))
         self._txt_output_dir = QLineEdit()
@@ -337,7 +298,6 @@ class MainWindow(QMainWindow):
 
         # --- Encoding settings ---
         enc_group = QGroupBox("Encoding Settings")
-        enc_group.setStyleSheet(self._group_style())
         enc_vlayout = QVBoxLayout(enc_group)
         enc_vlayout.setSpacing(8)
 
@@ -580,57 +540,16 @@ class MainWindow(QMainWindow):
 
         # --- Codec-specific parameters (dynamic) ---
         self._codec_params_group = QGroupBox("Codec Parameters")
-        self._codec_params_group.setStyleSheet(self._group_style())
         self._codec_params_layout = QVBoxLayout(self._codec_params_group)
         top_layout.addWidget(self._codec_params_group)
 
         # --- Action buttons ---
         action_row = QHBoxLayout()
         self._btn_start = QPushButton("  Start Encoding  ")
-        self._btn_start.setStyleSheet("""
-            QPushButton {
-                background-color: #2e7d32;
-                color: white;
-                font-size: 14px;
-                font-weight: bold;
-                padding: 8px 24px;
-                border: none;
-                border-radius: 6px;
-            }
-            QPushButton:hover {
-                background-color: #388e3c;
-            }
-            QPushButton:pressed {
-                background-color: #1b5e20;
-            }
-            QPushButton:disabled {
-                background-color: #999;
-            }
-        """)
         action_row.addWidget(self._btn_start)
 
         self._btn_cancel = QPushButton("  Cancel  ")
         self._btn_cancel.setEnabled(False)
-        self._btn_cancel.setStyleSheet("""
-            QPushButton {
-                background-color: #c62828;
-                color: white;
-                font-size: 14px;
-                font-weight: bold;
-                padding: 8px 24px;
-                border: none;
-                border-radius: 6px;
-            }
-            QPushButton:hover {
-                background-color: #e53935;
-            }
-            QPushButton:pressed {
-                background-color: #b71c1c;
-            }
-            QPushButton:disabled {
-                background-color: #999;
-            }
-        """)
         action_row.addWidget(self._btn_cancel)
 
         action_row.addStretch()
@@ -639,19 +558,6 @@ class MainWindow(QMainWindow):
         self._progress.setFixedWidth(300)
         self._progress.setTextVisible(True)
         self._progress.setValue(0)
-        self._progress.setStyleSheet("""
-            QProgressBar {
-                border: 1px solid #c0c0c0;
-                border-radius: 4px;
-                text-align: center;
-                height: 22px;
-                background: #f0f0f0;
-            }
-            QProgressBar::chunk {
-                background-color: #4caf50;
-                border-radius: 3px;
-            }
-        """)
         action_row.addWidget(self._progress)
 
         top_layout.addLayout(action_row)
@@ -666,7 +572,6 @@ class MainWindow(QMainWindow):
 
         # ---- Bottom panel: terminal ----
         terminal_group = QGroupBox("FFmpeg Output")
-        terminal_group.setStyleSheet(self._group_style())
         tg_layout = QVBoxLayout(terminal_group)
         self._terminal = TerminalWidget()
         self._terminal.setMinimumHeight(120)
@@ -677,29 +582,51 @@ class MainWindow(QMainWindow):
 
         # Status bar
         self.statusBar().showMessage("Ready")
-        self.statusBar().setStyleSheet("QStatusBar { border-top: 1px solid #d0d0d0; color: #555; }")
 
     # ------------------------------------------------------------------
-    # Styling helpers
+    # Styling / Theme
     # ------------------------------------------------------------------
-    @staticmethod
-    def _group_style() -> str:
-        return """
-            QGroupBox {
-                font-weight: bold;
-                font-size: 12px;
-                border: 1px solid #c0c0c0;
-                border-radius: 6px;
-                margin-top: 10px;
-                padding-top: 14px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 12px;
-                padding: 0 6px;
-                color: #333;
-            }
-        """
+    def _apply_theme(self):
+        """Apply the current theme (light or dark) to the entire UI."""
+        app = QApplication.instance()
+        dark = self._dark_mode
+
+        # Apply global app stylesheet
+        if dark:
+            app.setStyleSheet(DARK_THEME)
+        else:
+            app.setStyleSheet(LIGHT_THEME)
+
+        # Menu bar
+        self.menuBar().setStyleSheet(DARK_MENUBAR_STYLE if dark else LIGHT_MENUBAR_STYLE)
+
+        # File list
+        self._file_list.setStyleSheet(DARK_FILELIST_STYLE if dark else LIGHT_FILELIST_STYLE)
+
+        # File count label
+        self._lbl_file_count.setStyleSheet(DARK_FILECOUNT_STYLE if dark else LIGHT_FILECOUNT_STYLE)
+
+        # Start / Cancel buttons
+        self._btn_start.setStyleSheet(DARK_START_BUTTON_STYLE if dark else LIGHT_START_BUTTON_STYLE)
+        self._btn_cancel.setStyleSheet(DARK_CANCEL_BUTTON_STYLE if dark else LIGHT_CANCEL_BUTTON_STYLE)
+
+        # Progress bar
+        self._progress.setStyleSheet(DARK_PROGRESS_STYLE if dark else LIGHT_PROGRESS_STYLE)
+
+        # Status bar
+        self.statusBar().setStyleSheet(DARK_STATUSBAR_STYLE if dark else LIGHT_STATUSBAR_STYLE)
+
+        # Update all '?' help buttons
+        style = DARK_HELP_BUTTON_STYLE if dark else LIGHT_HELP_BUTTON_STYLE
+        for btn in self.findChildren(QToolButton):
+            if btn.text().strip() == "?":
+                btn.setStyleSheet(style)
+
+    def _toggle_dark_mode(self, checked: bool):
+        """Toggle between dark and light themes."""
+        self._dark_mode = checked
+        self._settings.setValue("dark_mode", checked)
+        self._apply_theme()
 
     # ------------------------------------------------------------------
     # Signal connections
@@ -711,6 +638,7 @@ class MainWindow(QMainWindow):
         self._act_clear_files.triggered.connect(self._clear_files)
         self._act_clear_terminal.triggered.connect(self._terminal.clear_terminal)
         self._act_reset_defaults.triggered.connect(self._reset_defaults)
+        self._act_dark_mode.triggered.connect(self._toggle_dark_mode)
         self._act_help_codec.triggered.connect(lambda: CodecHelpDialog(self).exec())
         self._act_help_pixfmt.triggered.connect(lambda: PixelFormatHelpDialog(self).exec())
         self._act_help_audio.triggered.connect(lambda: AudioHelpDialog(self).exec())
@@ -968,15 +896,22 @@ class MainWindow(QMainWindow):
     def _on_encoding_done(self):
         self._btn_start.setEnabled(True)
         self._btn_cancel.setEnabled(False)
-        self._worker = None
+        self._cleanup_worker()
         self.statusBar().showMessage("Encoding complete")
 
     def _on_encoding_error(self, msg):
         QMessageBox.critical(self, "FFmpeg Error", msg)
         self._btn_start.setEnabled(True)
         self._btn_cancel.setEnabled(False)
-        self._worker = None
+        self._cleanup_worker()
         self.statusBar().showMessage("Error occurred")
+
+    def _cleanup_worker(self):
+        """Safely clean up the encoder worker thread."""
+        if self._worker is not None:
+            self._worker.wait(5000)  # wait for thread to fully finish
+            self._worker.deleteLater()  # schedule safe Qt deletion
+            self._worker = None
 
     # ------------------------------------------------------------------
     # Close event

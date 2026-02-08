@@ -106,6 +106,7 @@ class EncoderWorker(QThread):
         """Build the ffmpeg argument list for a single file."""
         ow_flag = "-y" if self.overwrite else "-n"
         scale_filter = f"scale={self.width}:{self.height}"
+        has_bitrate = bool(self.bitrate and self.bitrate.strip())
 
         args = [
             self._ffmpeg_path,
@@ -126,13 +127,23 @@ class EncoderWorker(QThread):
             args.extend(["-r", self.fps.strip()])
 
         # Total video bitrate
-        if self.bitrate and self.bitrate.strip():
+        if has_bitrate:
             args.extend(["-b:v", self.bitrate.strip()])
 
         # Add codec-specific params (skip empty tune etc.)
+        # When using target bitrate mode, skip CRF/quality params
+        # as they conflict with bitrate-based rate control.
+        quality_keys = {"crf", "qp", "q:v"}
         for key, value in self.codec_params.items():
             if value is not None and str(value).strip():
+                if key in quality_keys and has_bitrate:
+                    continue  # skip quality param in bitrate mode
                 args.extend([f"-{key}", str(value)])
+
+        # When using bitrate with SVT-AV1, set rate control to VBR (rc=1)
+        # SVT-AV1 defaults to CQ mode (rc=0) which rejects -b:v
+        if has_bitrate and self.codec == "libsvtav1":
+            args.extend(["-svtav1-params", "rc=1"])
 
         if self.pix_fmt and self.pix_fmt.strip():
             args.extend(["-pix_fmt", self.pix_fmt])
