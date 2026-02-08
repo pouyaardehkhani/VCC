@@ -9,7 +9,7 @@ A desktop GUI application for batch video transcoding using **FFmpeg**. VCC prov
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![Python](https://img.shields.io/badge/python-3.12-green)
 ![License](https://img.shields.io/badge/license-MIT-brightgreen)
-![Release](https://img.shields.io/badge/release-v1.0.2-orange)
+![Release](https://img.shields.io/badge/release-v1.0.2a-orange)
 
 ---
 
@@ -22,7 +22,8 @@ A desktop GUI application for batch video transcoding using **FFmpeg**. VCC prov
 - **Subtitle Handling** — Copy subtitles or remove them
 - **Batch Processing** — Select multiple files or entire directories
 - **Embedded Terminal** — Live FFmpeg output displayed in the app
-- **Built-in Help** — Menu bar with Codec, Pixel Format, Audio, and Resolution guides
+- **Built-in Help** — Menu bar with Codec, Pixel Format, Audio, Resolution, FPS, and Bitrate guides
+- **Dark / Light Theme** — Toggle between dark and light mode via Settings menu (preference saved across sessions)
 - **Scroll-safe Controls** — Mouse wheel won't change values unless a control is focused
 - **Single EXE** — Standalone `.exe`, no Python installation required for end users
 
@@ -148,7 +149,8 @@ VCC/
 │   └── ui/
 │       ├── main_window.py      # Main application window
 │       ├── terminal_widget.py  # Embedded terminal output
-│       └── help_dialogs.py     # Help dialog windows
+│       ├── help_dialogs.py     # Help dialog windows
+│       └── themes.py           # Light and dark theme stylesheets
 ├── run.pyw                     # Entry point (no console window)
 ├── run.py                      # Entry point (with console, for debugging)
 ├── build.py                    # Build script
@@ -177,6 +179,7 @@ MIT License — free for personal and commercial use.
 
 ## Version History
 
+- **v1.0.2a** — Fixed encoding failure in target bitrate mode (SVT-AV1 VBR), fixed app crash after encoding completes, fixed dark theme white widgets, added dark/light theme toggle in Settings menu
 - **v1.0.2** — Added FPS control (11 presets + custom), video bitrate selector (256K–20M), app icon, fixed window closing during batch processing
 - **v1.0.1** — Added H.266/VVC codec, AV1 encoder comparison guide, FFmpeg 8.x support, auto-detection of FFmpeg in winget/common paths
 - **v1.0.0** — Initial release with full GUI, 7 codecs, batch processing, resolution presets, and standalone EXE
