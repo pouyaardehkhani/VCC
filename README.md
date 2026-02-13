@@ -26,19 +26,13 @@ A desktop GUI application for batch video transcoding using **FFmpeg**. VCC prov
 - **Batch Progress Bar** — Overall progress across all files in the queue
 - **Preset Profiles** — Save and load your encoding settings (Presets menu)
 - **Video Trimming** — Set start/end times to trim videos during conversion
-- **Output Format Selection** — Choose from 14 container formats (MKV, MP4, WebM, AVI, MOV, TS, FLV, WMV, OGG, M4V, MPG, 3GP, MXF) or auto-detect
+- **Output Format Selection** — Choose from 14 container formats (MKV, MP4, WebM, AVI, MOV, TS, FLV, WMV, OGG, M4V, MPG, 3GP, MXF) which are codec-aware or auto-detect
 - **Concatenate / Merge** — Merge multiple video files into a single output file
 - **Embedded Terminal** — Live FFmpeg output displayed in the app
 - **Built-in Help** — Menu bar with Codec, Pixel Format, Audio, Resolution, FPS, Bitrate, and GPU Encoding guides
 - **Dark / Light Theme** — Toggle between dark and light mode via Settings menu (preference saved across sessions)
 - **Scroll-safe Controls** — Mouse wheel won't accidentally change dropdown values
 - **Single EXE** — Standalone `.exe`, no Python installation required for end users
-
----
-
-## Demo of V1.0.0 (Out-dated)
-
-https://github.com/user-attachments/assets/78081d13-48a5-4e26-8a31-9624fa97d425
 
 ---
 
