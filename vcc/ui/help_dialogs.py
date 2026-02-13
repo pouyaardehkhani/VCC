@@ -534,6 +534,129 @@ class GPUEncodingHelpDialog(HelpDialog):
         super().__init__("GPU Encoding Guide", GPU_ENCODING_HELP_TEXT, parent)
 
 
+OUTPUT_FORMAT_HELP_TEXT = """\
+<h2>Output Format (Container) Guide</h2>
+
+<p>The <b>output format</b> (also called <em>container</em>) determines the file
+wrapper around your video, audio, and subtitle streams. Different containers
+support different codecs and features.</p>
+
+<hr>
+
+<h3>Available Formats</h3>
+<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;">
+<tr><th>Format</th><th>Extension</th><th>Best For</th><th>Video Codecs</th><th>Audio Codecs</th><th>Subtitles</th></tr>
+<tr><td><b>Auto</b></td><td>(same as source)</td><td>Default &mdash; keeps the original container</td>
+    <td>Any</td><td>Any</td><td>Any</td></tr>
+<tr><td><b>MKV</b></td><td>.mkv</td><td>Archival, multi-track, universal codec support</td>
+    <td>All codecs (H.264, H.265, AV1, VP9, etc.)</td>
+    <td>All (AAC, FLAC, Opus, AC3, DTS, etc.)</td>
+    <td>&#x2705; SRT, ASS/SSA, PGS, VobSub</td></tr>
+<tr><td><b>MP4</b></td><td>.mp4</td><td>Maximum compatibility, streaming, web, mobile</td>
+    <td>H.264, H.265, AV1, MPEG-4</td>
+    <td>AAC, MP3, AC3, Opus (limited)</td>
+    <td>&#x26A0; mov_text only (basic)</td></tr>
+<tr><td><b>WebM</b></td><td>.webm</td><td>Web video, HTML5 &lt;video&gt;</td>
+    <td>VP9, AV1 (VP8 legacy)</td>
+    <td>Opus, Vorbis</td>
+    <td>&#x2705; WebVTT</td></tr>
+<tr><td><b>AVI</b></td><td>.avi</td><td>Legacy compatibility, older devices</td>
+    <td>MPEG-4, H.264 (limited)</td>
+    <td>MP3, PCM, AC3</td>
+    <td>&#x274C; Not recommended</td></tr>
+<tr><td><b>MOV</b></td><td>.mov</td><td>Apple ecosystem, Final Cut Pro, ProRes</td>
+    <td>H.264, H.265, ProRes, MPEG-4</td>
+    <td>AAC, ALAC, PCM, AC3</td>
+    <td>&#x26A0; mov_text</td></tr>
+<tr><td><b>TS</b></td><td>.ts</td><td>Broadcast, IPTV, live streaming</td>
+    <td>H.264, H.265, MPEG-2</td>
+    <td>AAC, AC3, MP2</td>
+    <td>&#x2705; DVB subtitles</td></tr>
+<tr><td><b>FLV</b></td><td>.flv</td><td>Flash-era streaming (legacy)</td>
+    <td>H.264, VP6 (legacy)</td>
+    <td>AAC, MP3</td>
+    <td>&#x274C; None</td></tr>
+<tr><td><b>WMV</b></td><td>.wmv</td><td>Windows Media, older Windows apps</td>
+    <td>WMV, VC-1 (H.264 via ASF)</td>
+    <td>WMA, MP3</td>
+    <td>&#x274C; Not recommended</td></tr>
+<tr><td><b>OGG</b></td><td>.ogg</td><td>Open-source, Theora video, Vorbis audio</td>
+    <td>Theora (VP8 limited)</td>
+    <td>Vorbis, Opus</td>
+    <td>&#x274C; None</td></tr>
+<tr><td><b>M4V</b></td><td>.m4v</td><td>iTunes, Apple TV, DRM content</td>
+    <td>H.264, H.265</td>
+    <td>AAC, AC3</td>
+    <td>&#x26A0; mov_text</td></tr>
+<tr><td><b>MPG</b></td><td>.mpg</td><td>DVD, legacy MPEG-1/2 content</td>
+    <td>MPEG-1, MPEG-2</td>
+    <td>MP2, AC3</td>
+    <td>&#x274C; Not recommended</td></tr>
+<tr><td><b>3GP</b></td><td>.3gp</td><td>Mobile phones (legacy, small screens)</td>
+    <td>H.263, H.264, MPEG-4</td>
+    <td>AAC, AMR</td>
+    <td>&#x274C; None</td></tr>
+<tr><td><b>MXF</b></td><td>.mxf</td><td>Professional broadcast, post-production</td>
+    <td>MPEG-2, H.264, DNxHD, ProRes</td>
+    <td>PCM, AAC</td>
+    <td>&#x274C; None</td></tr>
+</table>
+
+<hr>
+
+<h3>Choosing the Right Format</h3>
+<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;">
+<tr><th>Goal</th><th>Recommended Format</th><th>Why</th></tr>
+<tr><td><b>Maximum compatibility</b></td><td>MP4</td>
+    <td>Plays on virtually every device, OS, and browser.</td></tr>
+<tr><td><b>Maximum flexibility</b></td><td>MKV</td>
+    <td>Supports every codec, multiple audio/subtitle tracks, chapters.</td></tr>
+<tr><td><b>Web embedding</b></td><td>WebM or MP4</td>
+    <td>WebM for VP9/AV1, MP4 for H.264/H.265. Both work in HTML5.</td></tr>
+<tr><td><b>Archival / lossless</b></td><td>MKV</td>
+    <td>Supports lossless codecs (FFV1, FLAC) and all metadata.</td></tr>
+<tr><td><b>Apple devices</b></td><td>MOV or MP4</td>
+    <td>Native support on macOS, iOS, Apple TV.</td></tr>
+<tr><td><b>Streaming / broadcast</b></td><td>TS</td>
+    <td>Designed for streaming; resilient to transmission errors.</td></tr>
+<tr><td><b>Professional editing</b></td><td>MXF or MOV</td>
+    <td>Industry-standard for broadcast and NLE workflows.</td></tr>
+</table>
+
+<hr>
+
+<h3>Format &amp; Codec Compatibility Notes</h3>
+<ul>
+<li><b>MKV</b> accepts virtually any codec combination. If in doubt, use MKV.</li>
+<li><b>MP4</b> does <b>not</b> support VP9, Theora, FLAC, or Vorbis audio.</li>
+<li><b>WebM</b> only supports VP8/VP9/AV1 video and Opus/Vorbis audio.</li>
+<li><b>AVI</b> has poor support for modern codecs (H.265, AV1) and advanced features.</li>
+<li>When using <b>Auto</b>, the output keeps the same container as the source file.</li>
+<li>If the chosen codec is incompatible with the selected container, FFmpeg will
+    report an error &mdash; switch to MKV for guaranteed compatibility.</li>
+</ul>
+
+<hr>
+
+<h3>Subtitles &amp; Container Support</h3>
+<p>Not all containers support subtitle streams:</p>
+<ul>
+<li><b>MKV:</b> Full subtitle support (SRT, ASS/SSA, PGS, VobSub, etc.)</li>
+<li><b>MP4/MOV/M4V:</b> Only <code>mov_text</code> (basic text subtitles). Other formats will fail.</li>
+<li><b>WebM:</b> WebVTT subtitles only.</li>
+<li><b>TS:</b> DVB-format subtitles (bitmap-based).</li>
+<li><b>AVI/FLV/WMV/OGG/3GP/MXF:</b> No reliable subtitle support.</li>
+</ul>
+<p><b>Tip:</b> If you need subtitles, use <b>MKV</b> or set subtitle mode to
+&ldquo;Remove&rdquo; for containers that don't support them.</p>
+"""
+
+
+class OutputFormatHelpDialog(HelpDialog):
+    def __init__(self, parent=None):
+        super().__init__("Output Format Guide", OUTPUT_FORMAT_HELP_TEXT, parent)
+
+
 class AboutDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -548,7 +671,7 @@ class AboutDialog(QDialog):
         browser.setHtml("""
         <div style="text-align:center;">
         <h2>Video Codec Converter (VCC)</h2>
-        <p>Version 1.1.1</p>
+        <p>Version 1.2</p>
         <p>A graphical FFmpeg front-end for batch video transcoding.</p>
         <hr>
         <p style="color:#666;">Powered by FFmpeg<br>

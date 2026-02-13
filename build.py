@@ -20,6 +20,7 @@ def main():
         "--name", "VideoCodecConverter",
         "--icon", icon_path,
         "--add-data", f"vcc;vcc",
+        "--add-data", f"icon.ico;.",
         "--noconfirm",
         "--clean",
         run_py,

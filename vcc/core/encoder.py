@@ -3,9 +3,12 @@ FFmpeg encoder worker - runs encoding in a background thread, emitting signals f
 """
 
 import os
+import re
 import glob
 import shutil
 import subprocess
+import time
+import tempfile
 from PyQt6.QtCore import QThread, pyqtSignal
 from vcc.core.gpu_detect import get_gpu_encoder, is_gpu_encoder
 
@@ -54,6 +57,33 @@ def find_ffmpeg() -> str:
     return "ffmpeg"  # fallback — let subprocess raise FileNotFoundError
 
 
+def probe_duration(ffmpeg_path: str, filepath: str) -> float | None:
+    """Use ffprobe (same dir as ffmpeg) to get video duration in seconds."""
+    ffprobe = ffmpeg_path.replace("ffmpeg", "ffprobe") if "ffmpeg" in ffmpeg_path else "ffprobe"
+    try:
+        r = subprocess.run(
+            [ffprobe, "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", filepath],
+            capture_output=True, text=True, timeout=10,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        )
+        return float(r.stdout.strip())
+    except Exception:
+        return None
+
+
+def _parse_time_to_seconds(time_str: str) -> float:
+    """Parse HH:MM:SS.xx or seconds string to float seconds."""
+    time_str = time_str.strip()
+    if ":" in time_str:
+        parts = time_str.split(":")
+        if len(parts) == 3:
+            return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
+        elif len(parts) == 2:
+            return float(parts[0]) * 60 + float(parts[1])
+    return float(time_str)
+
+
 class EncoderWorker(QThread):
     """
     Runs FFmpeg encoding for a list of files.
@@ -65,6 +95,8 @@ class EncoderWorker(QThread):
     file_finished = pyqtSignal(int, int, str, bool)  # index, total, filename, success
     encoding_done = pyqtSignal()        # all files done
     encoding_error = pyqtSignal(str)    # fatal error message
+    # Per-file progress: percent (0-100), speed_str, eta_str
+    file_progress = pyqtSignal(int, str, str)
 
     def __init__(
         self,
@@ -80,6 +112,9 @@ class EncoderWorker(QThread):
         fps: str = "",
         bitrate: str = "",
         overwrite: bool = False,
+        output_format: str = "",
+        file_trims: dict[str, tuple[str, str]] | None = None,
+        concatenate: bool = False,
         parent=None,
     ):
         super().__init__(parent)
@@ -95,6 +130,9 @@ class EncoderWorker(QThread):
         self.fps = fps          # e.g. "24", "30", "60", or "" for default
         self.bitrate = bitrate  # e.g. "1M", "5M", or "" for default
         self.overwrite = overwrite
+        self.output_format = output_format  # e.g. "mp4", "mkv", "" = auto
+        self.file_trims = file_trims or {}  # {filepath: (start, end)}
+        self.concatenate = concatenate
         self._cancelled = False
         self._ffmpeg_path = find_ffmpeg()
         self._gpu_enc = get_gpu_encoder(self.codec) if is_gpu_encoder(self.codec) else None
@@ -111,11 +149,18 @@ class EncoderWorker(QThread):
         has_bitrate = bool(self.bitrate and self.bitrate.strip())
         gpu = self._gpu_enc
 
+        # Per-file trim times
+        trim_start, trim_end = self.file_trims.get(src, ("", ""))
+
         args = [
             self._ffmpeg_path,
             "-hide_banner",
             ow_flag,
         ]
+
+        # Trim: start time (before -i for fast seek)
+        if trim_start and trim_start.strip():
+            args.extend(["-ss", trim_start.strip()])
 
         # GPU hardware-accelerated decoding (optional, speeds up decode)
         if gpu and gpu.hwaccel_flag:
@@ -123,6 +168,13 @@ class EncoderWorker(QThread):
 
         args.extend([
             "-i", src,
+        ])
+
+        # Trim: end time (after -i)
+        if trim_end and trim_end.strip():
+            args.extend(["-to", trim_end.strip()])
+
+        args.extend([
             "-map_metadata", "0",
             "-map_chapters", "0",
             "-map", "0:v:0",
@@ -203,6 +255,17 @@ class EncoderWorker(QThread):
                 if qp_val and str(qp_val).strip():
                     args.extend(["-qp_p", str(qp_val)])
 
+    def _get_output_extension(self) -> str:
+        """Determine the output file extension."""
+        if self.output_format and self.output_format.strip():
+            return self.output_format.strip()
+        # Auto-detect from codec
+        if self._gpu_enc:
+            return self._gpu_enc.container
+        elif self.codec in ("libvpx-vp9",):
+            return "webm"
+        return "mkv"
+
     def make_output_name(self, src_path: str) -> str:
         """Generate output filename like: basename.WxH.codec.paramN.mkv"""
         base = os.path.splitext(os.path.basename(src_path))[0]
@@ -220,12 +283,7 @@ class EncoderWorker(QThread):
             param_parts.append(f"br{self.bitrate.strip()}")
 
         param_str = ".".join(param_parts) if param_parts else ""
-        # Use correct container for the codec
-        ext = "mkv"  # default
-        if self._gpu_enc:
-            ext = self._gpu_enc.container
-        elif self.codec in ("libvpx-vp9",):
-            ext = "webm"
+        ext = self._get_output_extension()
 
         if param_str:
             name = f"{base}.{label}.{self.codec}.{param_str}.{ext}"
@@ -234,7 +292,100 @@ class EncoderWorker(QThread):
 
         return os.path.join(self.output_dir, name)
 
+    def _run_concat(self):
+        """Concatenate all input files into a single output using FFmpeg concat demuxer."""
+        try:
+            os.makedirs(self.output_dir, exist_ok=True)
+        except Exception as e:
+            self.encoding_error.emit(f"Cannot create output directory: {e}")
+            self.encoding_done.emit()
+            return
+
+        # Create concat list file
+        list_fd, list_path = tempfile.mkstemp(suffix=".txt", prefix="vcc_concat_")
+        try:
+            with os.fdopen(list_fd, "w", encoding="utf-8") as f:
+                for src in self.files:
+                    escaped = src.replace("'", "'\\''")
+                    f.write(f"file '{escaped}'\n")
+
+            # Build output name from first file
+            first_base = os.path.splitext(os.path.basename(self.files[0]))[0]
+            ext = self._get_output_extension()
+            out_name = f"{first_base}.merged.{ext}"
+            dst = os.path.join(self.output_dir, out_name)
+
+            total_duration = 0.0
+            for src in self.files:
+                d = probe_duration(self._ffmpeg_path, src)
+                if d:
+                    total_duration += d
+
+            self.file_started.emit(1, 1, out_name)
+            self.log_output.emit(f"Concatenating {len(self.files)} files → {out_name}\n")
+
+            ow_flag = "-y" if self.overwrite else "-n"
+            args = [
+                self._ffmpeg_path, "-hide_banner", ow_flag,
+                "-f", "concat", "-safe", "0",
+                "-i", list_path,
+                "-c", "copy",
+                dst,
+            ]
+
+            cmd_display = " ".join(f'"{a}"' if " " in a else a for a in args)
+            self.log_output.emit(f"> {cmd_display}\n\n")
+
+            self._process = subprocess.Popen(
+                args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            )
+
+            self._read_output_with_progress(total_duration)
+            self._process.wait()
+            success = self._process.returncode == 0
+
+            if success:
+                self.log_output.emit(f"\nDone -> {out_name}\n")
+            else:
+                self.log_output.emit(f"\n[WARNING] FFmpeg exited with code {self._process.returncode}\n")
+
+            self.file_finished.emit(1, 1, out_name, success)
+        except FileNotFoundError:
+            self.encoding_error.emit(
+                "ffmpeg not found! Please install FFmpeg and ensure ffmpeg.exe is in your system PATH."
+            )
+        except Exception as e:
+            self.log_output.emit(f"\n[ERROR] {e}\n")
+            self.file_finished.emit(1, 1, "merge", False)
+        finally:
+            try:
+                os.unlink(list_path)
+            except Exception:
+                pass
+
+        if not self._cancelled:
+            self.log_output.emit("=== All done. ===\n")
+        self.encoding_done.emit()
+
+    def _read_output_with_progress(self, total_duration: float):
+        """Read FFmpeg output line by line, emitting each line to the terminal."""
+        for line in self._process.stdout:
+            if self._cancelled:
+                self._process.terminate()
+                break
+            self.log_output.emit(line)
+
     def run(self):
+        # If concatenate mode, use concat method
+        if self.concatenate and len(self.files) > 1:
+            self._run_concat()
+            return
+
         total = len(self.files)
         try:
             os.makedirs(self.output_dir, exist_ok=True)
@@ -259,6 +410,26 @@ class EncoderWorker(QThread):
             self.file_started.emit(idx, total, filename)
             self.log_output.emit(f"[{idx}/{total}] ENCODE: {filename}\n")
 
+            # Probe duration for progress reporting
+            total_duration = probe_duration(self._ffmpeg_path, src) or 0.0
+            # Adjust for per-file trimming
+            trim_start, trim_end = self.file_trims.get(src, ("", ""))
+            if trim_start and trim_start.strip():
+                try:
+                    start_sec = _parse_time_to_seconds(trim_start)
+                except Exception:
+                    start_sec = 0.0
+            else:
+                start_sec = 0.0
+            if trim_end and trim_end.strip():
+                try:
+                    end_sec = _parse_time_to_seconds(trim_end)
+                    total_duration = max(0.0, end_sec - start_sec)
+                except Exception:
+                    pass
+            elif start_sec > 0 and total_duration > 0:
+                total_duration = max(0.0, total_duration - start_sec)
+
             args = self.build_ffmpeg_args(src, dst)
             cmd_display = " ".join(f'"{a}"' if " " in a else a for a in args)
             self.log_output.emit(f"> {cmd_display}\n\n")
@@ -273,11 +444,7 @@ class EncoderWorker(QThread):
                     creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
                 )
 
-                for line in self._process.stdout:
-                    if self._cancelled:
-                        self._process.terminate()
-                        break
-                    self.log_output.emit(line)
+                self._read_output_with_progress(total_duration)
 
                 self._process.wait()
                 success = self._process.returncode == 0

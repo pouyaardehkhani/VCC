@@ -3,15 +3,17 @@ Main window for Video Codec Converter (VCC).
 """
 
 import os
+import json
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
     QLabel, QPushButton, QComboBox, QSpinBox, QDoubleSpinBox, QLineEdit,
     QGroupBox, QFileDialog, QMessageBox, QMenuBar, QMenu,
     QProgressBar, QSplitter, QListWidget, QAbstractItemView,
     QToolButton, QSizePolicy, QCheckBox, QApplication, QListWidgetItem,
+    QDialog, QTimeEdit, QDialogButtonBox, QFormLayout, QInputDialog,
 )
-from PyQt6.QtCore import Qt, QSize, QEvent, QSettings
-from PyQt6.QtGui import QAction, QFont, QIcon
+from PyQt6.QtCore import Qt, QSize, QEvent, QSettings, QTime, QMimeData, QUrl
+from PyQt6.QtGui import QAction, QFont, QIcon, QDragEnterEvent, QDropEvent
 
 from vcc.core.codecs import CODECS
 from vcc.core.pixel_formats import PIXEL_FORMATS, query_encoder_pix_fmts
@@ -23,7 +25,7 @@ from vcc.ui.terminal_widget import TerminalWidget
 from vcc.ui.help_dialogs import (
     CodecHelpDialog, PixelFormatHelpDialog, AudioHelpDialog,
     ResolutionHelpDialog, FPSHelpDialog, BitrateHelpDialog, AboutDialog,
-    GPUEncodingHelpDialog,
+    GPUEncodingHelpDialog, OutputFormatHelpDialog,
 )
 from vcc.ui.themes import (
     LIGHT_THEME, DARK_THEME,
@@ -71,16 +73,13 @@ class NoScrollDoubleSpinBox(QDoubleSpinBox):
 
 
 class NoScrollComboBox(QComboBox):
-    """QComboBox that ignores wheel events unless it has focus."""
+    """QComboBox that always ignores wheel events to prevent accidental changes."""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
     def wheelEvent(self, event):
-        if self.hasFocus():
-            super().wheelEvent(event)
-        else:
-            event.ignore()
+        event.ignore()
 
 
 # ---------------------------------------------------------------------------
@@ -94,6 +93,74 @@ def make_help_button(tooltip_text: str, dark: bool = False) -> QToolButton:
     btn.setToolTip(tooltip_text)
     btn.setStyleSheet(DARK_HELP_BUTTON_STYLE if dark else LIGHT_HELP_BUTTON_STYLE)
     return btn
+
+
+# ---------------------------------------------------------------------------
+# Trim Dialog
+# ---------------------------------------------------------------------------
+class TrimDialog(QDialog):
+    """Dialog for specifying start/end trim times."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Video Trimming")
+        self.setFixedSize(380, 200)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        lbl = QLabel("Specify start and/or end times to trim the video.\n"
+                      "Leave at 00:00:00 to skip that boundary.")
+        lbl.setWordWrap(True)
+        layout.addWidget(lbl)
+
+        form = QFormLayout()
+        form.setSpacing(8)
+
+        self._start_time = QTimeEdit()
+        self._start_time.setDisplayFormat("HH:mm:ss")
+        self._start_time.setTime(QTime(0, 0, 0))
+        form.addRow("Start Time:", self._start_time)
+
+        self._end_time = QTimeEdit()
+        self._end_time.setDisplayFormat("HH:mm:ss")
+        self._end_time.setTime(QTime(0, 0, 0))
+        form.addRow("End Time:", self._end_time)
+
+        layout.addLayout(form)
+
+        btn_row = QHBoxLayout()
+        self._btn_clear = QPushButton("Clear Trim")
+        self._btn_clear.clicked.connect(self._clear)
+        btn_row.addWidget(self._btn_clear)
+        btn_row.addStretch()
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        btn_row.addWidget(buttons)
+        layout.addLayout(btn_row)
+
+    def _clear(self):
+        self._start_time.setTime(QTime(0, 0, 0))
+        self._end_time.setTime(QTime(0, 0, 0))
+
+    def get_times(self) -> tuple[str, str]:
+        """Return (start, end) as HH:MM:SS strings, or empty if 00:00:00."""
+        s = self._start_time.time()
+        e = self._end_time.time()
+        start = "" if s == QTime(0, 0, 0) else s.toString("HH:mm:ss")
+        end = "" if e == QTime(0, 0, 0) else e.toString("HH:mm:ss")
+        return start, end
+
+    def set_times(self, start: str, end: str):
+        if start:
+            self._start_time.setTime(QTime.fromString(start, "HH:mm:ss"))
+        if end:
+            self._end_time.setTime(QTime.fromString(end, "HH:mm:ss"))
 
 
 # ---------------------------------------------------------------------------
@@ -164,8 +231,23 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(900, 700)
         self.resize(1050, 780)
 
+        # Set window icon
+        import sys
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "icon.ico")
+        if not os.path.isfile(icon_path):
+            # Try relative to this module (dev mode)
+            icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "icon.ico")
+        if os.path.isfile(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
+        # Enable drag & drop on the main window
+        self.setAcceptDrops(True)
+
         self._worker: EncoderWorker | None = None
         self._codec_param_widgets: list[CodecParamWidget] = []
+
+        # Per-file trim state: { filepath: (start_str, end_str) }
+        self._file_trims: dict[str, tuple[str, str]] = {}
 
         # Load theme preference
         self._settings = QSettings("VCC", "VideoCodecConverter")
@@ -207,6 +289,17 @@ class MainWindow(QMainWindow):
         self._act_clear_terminal = QAction("Clear Terminal", self)
         edit_menu.addAction(self._act_clear_terminal)
 
+        # Presets
+        presets_menu = menubar.addMenu("Presets")
+        self._act_save_preset = QAction("Save Current Settings...", self)
+        self._act_save_preset.setShortcut("Ctrl+S")
+        presets_menu.addAction(self._act_save_preset)
+        self._act_load_preset = QAction("Load Preset...", self)
+        self._act_load_preset.setShortcut("Ctrl+L")
+        presets_menu.addAction(self._act_load_preset)
+        self._act_delete_preset = QAction("Delete Preset...", self)
+        presets_menu.addAction(self._act_delete_preset)
+
         # Settings
         settings_menu = menubar.addMenu("Settings")
         self._act_dark_mode = QAction("Dark Mode", self)
@@ -233,6 +326,8 @@ class MainWindow(QMainWindow):
         help_menu.addAction(self._act_help_bitrate)
         self._act_help_gpu = QAction("GPU Encoding Guide...", self)
         help_menu.addAction(self._act_help_gpu)
+        self._act_help_output_format = QAction("Output Format Guide...", self)
+        help_menu.addAction(self._act_help_output_format)
         help_menu.addSeparator()
         self._act_about = QAction("About VCC...", self)
         help_menu.addAction(self._act_about)
@@ -301,6 +396,40 @@ class MainWindow(QMainWindow):
         og_layout.addWidget(self._btn_output_dir)
         self._chk_overwrite = QCheckBox("Overwrite existing")
         og_layout.addWidget(self._chk_overwrite)
+
+        og_layout.addSpacing(12)
+        og_layout.addWidget(QLabel("Format:"))
+        self._cmb_output_format = NoScrollComboBox()
+        self._cmb_output_format.setFixedWidth(100)
+        self._output_formats = [
+            ("Auto", ""),
+            ("MKV", "mkv"),
+            ("MP4", "mp4"),
+            ("WebM", "webm"),
+            ("AVI", "avi"),
+            ("MOV", "mov"),
+            ("TS", "ts"),
+            ("FLV", "flv"),
+            ("WMV", "wmv"),
+            ("OGG", "ogg"),
+            ("M4V", "m4v"),
+            ("MPG", "mpg"),
+            ("3GP", "3gp"),
+            ("MXF", "mxf"),
+        ]
+        for name, val in self._output_formats:
+            self._cmb_output_format.addItem(name, val)
+        self._cmb_output_format.setCurrentIndex(0)
+        og_layout.addWidget(self._cmb_output_format)
+
+        self._chk_concat = QCheckBox("Merge/Concatenate files")
+        self._chk_concat.setToolTip(
+            "Concatenate all input files into a single output file\n"
+            "using FFmpeg's concat demuxer (stream copy, no re-encode).\n"
+            "Files should have similar formats for best results."
+        )
+        og_layout.addWidget(self._chk_concat)
+
         top_layout.addWidget(output_group)
 
         # --- Encoding settings ---
@@ -416,7 +545,7 @@ class MainWindow(QMainWindow):
         lbl_pf.setFixedWidth(100)
         row_pixfmt.addWidget(lbl_pf)
         self._cmb_pixfmt = NoScrollComboBox()
-        self._cmb_pixfmt.setEditable(True)
+        self._cmb_pixfmt.setEditable(False)
         self._cmb_pixfmt.setMinimumWidth(300)
         self._cmb_pixfmt.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         for pf in PIXEL_FORMATS:
@@ -430,7 +559,6 @@ class MainWindow(QMainWindow):
         pixfmt_help_btn = make_help_button(
             "Pixel format defines color model, chroma subsampling,\n"
             "bit depth, and alpha channel.\n\n"
-            "You can also type a custom FFmpeg pixel format name.\n\n"
             "See Help → Pixel Format Information for details."
         )
         row_pixfmt.addWidget(pixfmt_help_btn)
@@ -556,6 +684,22 @@ class MainWindow(QMainWindow):
         row_bitrate.addStretch()
         enc_vlayout.addLayout(row_bitrate)
 
+        # Row 6: Trim
+        row_trim = QHBoxLayout()
+        lbl_trim = QLabel("Trim:")
+        lbl_trim.setFixedWidth(100)
+        row_trim.addWidget(lbl_trim)
+        self._btn_trim = QPushButton("Set Trim...")
+        self._btn_trim.setFixedWidth(120)
+        self._btn_trim.setToolTip("Open a dialog to set start/end trim times.")
+        row_trim.addWidget(self._btn_trim)
+        self._lbl_trim_info = QLabel("No trim set")
+        self._lbl_trim_info.setStyleSheet("color: #888; font-style: italic;")
+        row_trim.addSpacing(12)
+        row_trim.addWidget(self._lbl_trim_info)
+        row_trim.addStretch()
+        enc_vlayout.addLayout(row_trim)
+
         top_layout.addWidget(enc_group)
 
         # --- Codec-specific parameters (dynamic) ---
@@ -574,11 +718,17 @@ class MainWindow(QMainWindow):
 
         action_row.addStretch()
 
+        # Batch progress bar
+        batch_prog_row = QHBoxLayout()
+        batch_prog_row.setSpacing(4)
+        self._lbl_batch_progress = QLabel("Batch:")
+        batch_prog_row.addWidget(self._lbl_batch_progress)
         self._progress = QProgressBar()
-        self._progress.setFixedWidth(300)
+        self._progress.setFixedWidth(250)
         self._progress.setTextVisible(True)
         self._progress.setValue(0)
-        action_row.addWidget(self._progress)
+        batch_prog_row.addWidget(self._progress)
+        action_row.addLayout(batch_prog_row)
 
         top_layout.addLayout(action_row)
 
@@ -665,7 +815,13 @@ class MainWindow(QMainWindow):
         self._act_help_fps.triggered.connect(lambda: FPSHelpDialog(self).exec())
         self._act_help_bitrate.triggered.connect(lambda: BitrateHelpDialog(self).exec())
         self._act_help_gpu.triggered.connect(lambda: GPUEncodingHelpDialog(self).exec())
+        self._act_help_output_format.triggered.connect(lambda: OutputFormatHelpDialog(self).exec())
         self._act_about.triggered.connect(lambda: AboutDialog(self).exec())
+
+        # Presets
+        self._act_save_preset.triggered.connect(self._save_preset)
+        self._act_load_preset.triggered.connect(self._load_preset)
+        self._act_delete_preset.triggered.connect(self._delete_preset)
 
         # Buttons
         self._btn_add_files.clicked.connect(self._add_files)
@@ -675,6 +831,7 @@ class MainWindow(QMainWindow):
         self._btn_output_dir.clicked.connect(self._browse_output)
         self._btn_start.clicked.connect(self._start_encoding)
         self._btn_cancel.clicked.connect(self._cancel_encoding)
+        self._btn_trim.clicked.connect(self._open_trim_dialog)
 
         # Codec change -> rebuild params
         self._cmb_codec.currentIndexChanged.connect(self._on_codec_changed)
@@ -687,6 +844,198 @@ class MainWindow(QMainWindow):
         # Width/Height manual change -> switch preset to "Custom"
         self._spn_width.valueChanged.connect(self._on_resolution_manual_change)
         self._spn_height.valueChanged.connect(self._on_resolution_manual_change)
+
+    # ------------------------------------------------------------------
+    # Drag & Drop
+    # ------------------------------------------------------------------
+    _DRAG_VIDEO_EXTS = {".mkv", ".mp4", ".avi", ".mov", ".m4v", ".webm",
+                        ".ts", ".flv", ".wmv", ".mpg", ".mpeg"}
+
+    def dragEnterEvent(self, event: QDragEnterEvent):
+        if event.mimeData().hasUrls():
+            # Only accept if at least one URL is a video file or directory
+            dominated = False
+            for url in event.mimeData().urls():
+                p = url.toLocalFile()
+                if os.path.isdir(p):
+                    dominated = True
+                    break
+                if os.path.isfile(p) and os.path.splitext(p)[1].lower() in self._DRAG_VIDEO_EXTS:
+                    dominated = True
+                    break
+            if dominated:
+                event.acceptProposedAction()
+            else:
+                event.ignore()
+
+    def dropEvent(self, event: QDropEvent):
+        paths = []
+        for url in event.mimeData().urls():
+            p = url.toLocalFile()
+            if os.path.isfile(p):
+                ext = os.path.splitext(p)[1].lower()
+                if ext in self._DRAG_VIDEO_EXTS:
+                    paths.append(p)
+            elif os.path.isdir(p):
+                for root, _dirs, fnames in os.walk(p):
+                    for fn in sorted(fnames):
+                        if os.path.splitext(fn)[1].lower() in self._DRAG_VIDEO_EXTS:
+                            paths.append(os.path.join(root, fn))
+        if paths:
+            self._append_files(paths)
+            self.statusBar().showMessage(f"Added {len(paths)} file(s) via drag & drop")
+        event.acceptProposedAction()
+
+    # ------------------------------------------------------------------
+    # Trim dialog
+    # ------------------------------------------------------------------
+    def _open_trim_dialog(self):
+        """Open a trim dialog for the selected file(s) in the input list."""
+        selected = self._file_list.selectedItems()
+        if not selected:
+            if self._file_list.count() == 0:
+                QMessageBox.information(self, "No Files", "Please add video files first.")
+                return
+            # If nothing selected, ask user to select
+            QMessageBox.information(
+                self, "Select File",
+                "Please select one or more files in the input list to set trim times."
+            )
+            return
+
+        for item in selected:
+            filepath = item.data(Qt.ItemDataRole.UserRole)
+            filename = os.path.basename(filepath)
+            existing = self._file_trims.get(filepath, ("", ""))
+            dlg = TrimDialog(self)
+            dlg.setWindowTitle(f"Trim — {filename}")
+            dlg.set_times(existing[0], existing[1])
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                start, end = dlg.get_times()
+                if start or end:
+                    self._file_trims[filepath] = (start, end)
+                else:
+                    self._file_trims.pop(filepath, None)
+            else:
+                break  # user cancelled, stop iterating
+        self._update_trim_label()
+
+    def _update_trim_label(self):
+        trimmed_count = len(self._file_trims)
+        if trimmed_count > 0:
+            self._lbl_trim_info.setText(f"{trimmed_count} file(s) trimmed")
+            self._lbl_trim_info.setStyleSheet("color: #2e7d32; font-weight: bold;")
+        else:
+            self._lbl_trim_info.setText("No trim set")
+            self._lbl_trim_info.setStyleSheet("color: #888; font-style: italic;")
+
+    # ------------------------------------------------------------------
+    # Preset Profiles
+    # ------------------------------------------------------------------
+    def _get_presets_dir(self) -> str:
+        """Return path to presets directory (next to the settings)."""
+        base = os.path.join(os.path.expanduser("~"), ".vcc_presets")
+        os.makedirs(base, exist_ok=True)
+        return base
+
+    def _gather_current_settings(self) -> dict:
+        """Gather all current encoding settings into a dict."""
+        return {
+            "resolution_preset_idx": self._cmb_resolution_preset.currentIndex(),
+            "width": self._spn_width.value(),
+            "height": self._spn_height.value(),
+            "codec_idx": self._cmb_codec.currentIndex(),
+            "pixfmt_text": self._cmb_pixfmt.currentText(),
+            "audio": self._cmb_audio.currentText(),
+            "subtitle": self._cmb_subtitle.currentText(),
+            "fps_idx": self._cmb_fps.currentIndex(),
+            "custom_fps": self._spn_custom_fps.value(),
+            "bitrate_idx": self._cmb_bitrate.currentIndex(),
+            "output_format_idx": self._cmb_output_format.currentIndex(),
+            "overwrite": self._chk_overwrite.isChecked(),
+            "concat": self._chk_concat.isChecked(),
+            "trim_start": "",
+            "trim_end": "",
+        }
+
+    def _apply_settings(self, settings: dict):
+        """Apply a settings dict to the UI."""
+        try:
+            self._cmb_resolution_preset.setCurrentIndex(settings.get("resolution_preset_idx", 6))
+            self._spn_width.setValue(settings.get("width", 1280))
+            self._spn_height.setValue(settings.get("height", 720))
+            ci = settings.get("codec_idx", 0)
+            if ci < self._cmb_codec.count():
+                self._cmb_codec.setCurrentIndex(ci)
+            pf_text = settings.get("pixfmt_text", "")
+            if pf_text:
+                idx = self._cmb_pixfmt.findText(pf_text)
+                if idx >= 0:
+                    self._cmb_pixfmt.setCurrentIndex(idx)
+            self._cmb_audio.setCurrentText(settings.get("audio", "copy"))
+            self._cmb_subtitle.setCurrentText(settings.get("subtitle", "copy"))
+            self._cmb_fps.setCurrentIndex(settings.get("fps_idx", 0))
+            self._spn_custom_fps.setValue(settings.get("custom_fps", 30.0))
+            self._cmb_bitrate.setCurrentIndex(settings.get("bitrate_idx", 0))
+            ofi = settings.get("output_format_idx", 0)
+            if ofi < self._cmb_output_format.count():
+                self._cmb_output_format.setCurrentIndex(ofi)
+            self._chk_overwrite.setChecked(settings.get("overwrite", False))
+            self._chk_concat.setChecked(settings.get("concat", False))
+            # Presets don't store per-file trims – just clear
+            self._file_trims.clear()
+            self._update_trim_label()
+            self._on_fps_preset_changed(self._cmb_fps.currentIndex())
+        except Exception:
+            pass
+
+    def _save_preset(self):
+        name, ok = QInputDialog.getText(self, "Save Preset", "Preset name:")
+        if not ok or not name.strip():
+            return
+        name = name.strip()
+        settings = self._gather_current_settings()
+        path = os.path.join(self._get_presets_dir(), f"{name}.json")
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(settings, f, indent=2)
+            self.statusBar().showMessage(f"Preset '{name}' saved")
+        except Exception as e:
+            QMessageBox.warning(self, "Save Error", f"Could not save preset:\n{e}")
+
+    def _load_preset(self):
+        presets_dir = self._get_presets_dir()
+        files = [f[:-5] for f in os.listdir(presets_dir) if f.endswith(".json")]
+        if not files:
+            QMessageBox.information(self, "No Presets", "No saved presets found.\n\nUse Presets → Save Current Settings to create one.")
+            return
+        name, ok = QInputDialog.getItem(self, "Load Preset", "Select preset:", files, 0, False)
+        if not ok:
+            return
+        path = os.path.join(presets_dir, f"{name}.json")
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                settings = json.load(f)
+            self._apply_settings(settings)
+            self.statusBar().showMessage(f"Preset '{name}' loaded")
+        except Exception as e:
+            QMessageBox.warning(self, "Load Error", f"Could not load preset:\n{e}")
+
+    def _delete_preset(self):
+        presets_dir = self._get_presets_dir()
+        files = [f[:-5] for f in os.listdir(presets_dir) if f.endswith(".json")]
+        if not files:
+            QMessageBox.information(self, "No Presets", "No saved presets found.")
+            return
+        name, ok = QInputDialog.getItem(self, "Delete Preset", "Select preset to delete:", files, 0, False)
+        if not ok:
+            return
+        path = os.path.join(presets_dir, f"{name}.json")
+        try:
+            os.remove(path)
+            self.statusBar().showMessage(f"Preset '{name}' deleted")
+        except Exception as e:
+            QMessageBox.warning(self, "Delete Error", f"Could not delete preset:\n{e}")
 
     # ------------------------------------------------------------------
     # File management
@@ -730,12 +1079,17 @@ class MainWindow(QMainWindow):
 
     def _remove_selected_files(self):
         for item in self._file_list.selectedItems():
+            filepath = item.data(Qt.ItemDataRole.UserRole)
+            self._file_trims.pop(filepath, None)
             self._file_list.takeItem(self._file_list.row(item))
         self._update_file_count()
+        self._update_trim_label()
 
     def _clear_files(self):
         self._file_list.clear()
+        self._file_trims.clear()
         self._update_file_count()
+        self._update_trim_label()
 
     def _update_file_count(self):
         count = self._file_list.count()
@@ -812,8 +1166,60 @@ class MainWindow(QMainWindow):
         # Filter pixel format dropdown for the selected encoder
         self._update_pixfmt_combo(codec_key)
 
+        # Filter output format dropdown for the selected codec
+        self._update_output_format_combo(codec_key)
+
         # Add stretch at end
         self._codec_params_layout.addStretch()
+
+    # Codec family → compatible output containers
+    _CODEC_FORMAT_MAP: dict[str, set[str]] = {
+        # H.264 works in almost everything
+        "h264": {"mkv", "mp4", "avi", "mov", "ts", "flv", "wmv", "m4v", "mpg", "3gp", "mxf"},
+        # H.265/HEVC
+        "hevc": {"mkv", "mp4", "mov", "ts", "m4v", "mxf"},
+        # AV1
+        "av1":  {"mkv", "mp4", "webm"},
+        # VP9
+        "vp9":  {"mkv", "webm"},
+        # MPEG-4 Part 2
+        "mpeg4": {"mkv", "mp4", "avi", "mov", "ts", "flv", "3gp", "mpg"},
+        # H.266/VVC — very limited container support
+        "vvc":  {"mkv", "ts"},
+    }
+    # Map specific encoder names to codec families
+    _ENCODER_FAMILY: dict[str, str] = {
+        "libx264": "h264", "h264_nvenc": "h264", "h264_amf": "h264", "h264_qsv": "h264",
+        "libx265": "hevc", "hevc_nvenc": "hevc", "hevc_amf": "hevc", "hevc_qsv": "hevc",
+        "libsvtav1": "av1", "libaom-av1": "av1", "librav1e": "av1",
+        "av1_nvenc": "av1", "av1_amf": "av1", "av1_qsv": "av1",
+        "libvpx-vp9": "vp9",
+        "mpeg4": "mpeg4",
+        "libvvenc": "vvc",
+    }
+
+    def _update_output_format_combo(self, encoder_name: str):
+        """Filter output format dropdown to only show containers compatible with the codec."""
+        family = self._ENCODER_FAMILY.get(encoder_name, "")
+        allowed = self._CODEC_FORMAT_MAP.get(family)
+
+        # Remember current selection
+        prev_data = self._cmb_output_format.currentData()
+
+        self._cmb_output_format.blockSignals(True)
+        self._cmb_output_format.clear()
+        # Auto is always available
+        self._cmb_output_format.addItem("Auto", "")
+        for name, val in self._output_formats:
+            if not val:
+                continue  # skip Auto, already added
+            if allowed is None or val in allowed:
+                self._cmb_output_format.addItem(name, val)
+        self._cmb_output_format.blockSignals(False)
+
+        # Restore previous selection if still available
+        idx = self._cmb_output_format.findData(prev_data)
+        self._cmb_output_format.setCurrentIndex(max(idx, 0))
 
     def _update_pixfmt_combo(self, encoder_name: str):
         """Filter pixel format dropdown to only show formats the encoder supports.
@@ -921,7 +1327,11 @@ class MainWindow(QMainWindow):
         self._spn_custom_fps.setValue(30.0)
         self._spn_custom_fps.setEnabled(False)
         self._cmb_bitrate.setCurrentIndex(0)
+        self._cmb_output_format.setCurrentIndex(0)
         self._chk_overwrite.setChecked(False)
+        self._chk_concat.setChecked(False)
+        self._file_trims.clear()
+        self._update_trim_label()
         self._on_codec_changed()
         self.statusBar().showMessage("Settings reset to defaults")
 
@@ -978,6 +1388,9 @@ class MainWindow(QMainWindow):
             fps=self._get_selected_fps(),
             bitrate=self._cmb_bitrate.currentData() or "",
             overwrite=self._chk_overwrite.isChecked(),
+            output_format=self._cmb_output_format.currentData() or "",
+            file_trims=self._file_trims,
+            concatenate=self._chk_concat.isChecked(),
         )
 
         self._worker.log_output.connect(self._terminal.append_text)
