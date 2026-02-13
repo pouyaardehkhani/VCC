@@ -3,8 +3,10 @@ Entry point for Video Codec Converter (VCC).
 """
 
 import sys
+import os
 import traceback
 from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from vcc.ui.main_window import MainWindow
 
@@ -30,7 +32,12 @@ def main():
     # Install global exception handler to prevent silent crashes
     sys.excepthook = _global_exception_handler
 
+    # Force the "Fusion" style so the OS native theme (dark/light) does not
+    # interfere with our custom stylesheets.
+    os.environ["QT_QPA_PLATFORM"] = "windows:darkmode=0"
+
     app = QApplication(sys.argv)
+    app.setStyle("Fusion")
     app.setApplicationName("Video Codec Converter")
     app.setOrganizationName("VCC")
 
