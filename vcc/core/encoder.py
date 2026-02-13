@@ -215,11 +215,19 @@ class EncoderWorker(QThread):
         if self.pix_fmt and self.pix_fmt.strip():
             args.extend(["-pix_fmt", self.pix_fmt])
 
-        args.extend([
-            "-c:a", self.audio_codec,
-            "-c:s", self.subtitle_codec,
-            dst,
-        ])
+        args.extend(["-c:a", self.audio_codec])
+
+        # Subtitle codec — MP4/M4V/MOV/3GP only support mov_text.
+        # If the user chose "copy" or an incompatible codec, auto-switch
+        # to mov_text for those containers so FFmpeg doesn't fail.
+        dst_ext = os.path.splitext(dst)[1].lower()
+        sub_codec = self.subtitle_codec
+        if dst_ext in (".mp4", ".m4v", ".mov", ".3gp"):
+            if sub_codec in ("copy", "ass", "srt", "subrip"):
+                sub_codec = "mov_text"
+        args.extend(["-c:s", sub_codec])
+
+        args.append(dst)
 
         return args
 
