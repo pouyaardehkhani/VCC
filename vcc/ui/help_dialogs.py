@@ -270,14 +270,14 @@ class HelpDialog(QDialog):
         browser.setHtml(html_content)
         font = QFont("Segoe UI", 10)
         browser.setFont(font)
-        browser.setStyleSheet("""
-            QTextBrowser {
-                background-color: #fafafa;
-                border: 1px solid #d0d0d0;
-                border-radius: 4px;
-                padding: 8px;
-            }
-        """)
+        # browser.setStyleSheet("""
+        #     QTextBrowser {
+        #         background-color: #fafafa;
+        #         border: 1px solid #d0d0d0;
+        #         border-radius: 4px;
+        #         padding: 8px;
+        #     }
+        # """)
         layout.addWidget(browser)
 
         btn_layout = QHBoxLayout()
@@ -812,11 +812,11 @@ class AboutDialog(QDialog):
         <p>Version 1.2.1</p>
         <p>A graphical FFmpeg front-end for batch video transcoding.</p>
         <hr>
-        <p style="color:#666;">Powered by FFmpeg<br>
+        <p>Powered by FFmpeg<br>
         Built with Python &amp; PyQt6</p>
         </div>
         """)
-        browser.setStyleSheet("QTextBrowser { border: none; background: transparent; }")
+        #browser.setStyleSheet("QTextBrowser { border: none; background: transparent; }")
         layout.addWidget(browser)
 
         btn_layout = QHBoxLayout()

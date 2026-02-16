@@ -173,6 +173,13 @@ LIGHT_THEME = """
     QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
         background: #e0e0e0;
     }
+    QTextBrowser {
+        background-color: #FFFFFF;  /* white background */
+        color: #333333;             /* dark gray text */
+        border: 1px solid #CCCCCC;  /* light gray border */
+        border-radius: 4px;
+        padding: 8px;
+    }
 """
 
 DARK_THEME = """
@@ -387,7 +394,7 @@ DARK_THEME = """
         font-size: 12px;
     }
     QTextBrowser {
-        background-color: #333;
+        background-color: #5C5C5C;
         color: #e0e0e0;
         border: 1px solid #555;
         border-radius: 4px;

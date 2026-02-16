@@ -4,6 +4,7 @@ Main window for Video Codec Converter (VCC).
 
 import os
 import json
+from configparser import ConfigParser
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
     QLabel, QPushButton, QComboBox, QSpinBox, QDoubleSpinBox, QLineEdit,
@@ -41,8 +42,38 @@ from vcc.ui.themes import (
     LIGHT_FILECOUNT_STYLE, DARK_FILECOUNT_STYLE,
     get_arrow_stylesheet,
 )
+# ------------------ Dark Mode Detection ------------------
+def _is_kde_dark_mode() -> bool:
+    """Detect KDE Plasma dark mode by checking LookAndFeelPackage."""
+    kdeglobals = os.path.expanduser("~/.config/kdeglobals")
+    if not os.path.isfile(kdeglobals):
+        #print("LIGHT MODE")
+        return False
 
+    parser = ConfigParser()
+    parser.read(kdeglobals)
 
+    if parser.has_section("KDE") and parser.has_option("KDE", "LookAndFeelPackage"):
+        look_and_feel = parser.get("KDE", "LookAndFeelPackage").lower()
+        if "breezedark" in look_and_feel:
+            print("DARK MODE")
+            return True
+
+    return False
+
+def _detect_system_dark_mode() -> bool:
+    """Unified Linux dark mode detection (GTK + KDE + fallback)."""
+    # GTK desktops (GNOME, XFCE, Cinnamon)
+    gtk_theme = os.environ.get("GTK_THEME", "").lower()
+    if "dark" in gtk_theme:
+        return True
+
+    # KDE Plasma
+    if _is_kde_dark_mode():
+        return True
+
+    # Fallback
+    return False
 # ---------------------------------------------------------------------------
 # Scroll-proof widgets: ignore mouse wheel so scrolling the form
 # doesn't accidentally change values.
@@ -324,6 +355,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Video Codec Converter (VCC)")
         self.setMinimumSize(900, 700)
         self.resize(1050, 780)
+        is_dark_mode = _detect_system_dark_mode()
+        # self._toggle_dark_mode(is_dark_mode)
 
         # Set window icon
         import sys
@@ -467,7 +500,7 @@ class MainWindow(QMainWindow):
         self._btn_add_dir.setFixedWidth(130)
         file_row.addWidget(self._btn_add_dir)
         self._btn_remove_selected = QPushButton("Remove Selected")
-        self._btn_remove_selected.setFixedWidth(130)
+        self._btn_remove_selected.setFixedWidth(136)
         file_row.addWidget(self._btn_remove_selected)
         self._btn_clear_files = QPushButton("Clear All")
         self._btn_clear_files.setFixedWidth(90)
@@ -962,7 +995,6 @@ class MainWindow(QMainWindow):
         self._dark_mode = checked
         self._settings.setValue("dark_mode", checked)
         self._apply_theme()
-
     # ------------------------------------------------------------------
     # Signal connections
     # ------------------------------------------------------------------
