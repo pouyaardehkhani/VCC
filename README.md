@@ -6,7 +6,7 @@
 
 A desktop GUI application for batch video transcoding using **FFmpeg**. VCC provides a user-friendly interface to convert video files between popular codecs with full control over encoding parameters.
 
-![Platform](https://img.shields.io/badge/platform-Windows-blue)
+![Platform](https://img.shields.io/badge/platform-Linux-blue)
 ![Python](https://img.shields.io/badge/python-3.12-green)
 ![License](https://img.shields.io/badge/license-MIT-brightgreen)
 ![Release](https://img.shields.io/badge/release-v1.2.1-orange)
