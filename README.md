@@ -9,7 +9,7 @@ A desktop GUI application for batch video transcoding using **FFmpeg**. VCC prov
 ![Platform](https://img.shields.io/badge/platform-Linux-blue)
 ![Python](https://img.shields.io/badge/python-3.12-green)
 ![License](https://img.shields.io/badge/license-MIT-brightgreen)
-![Release](https://img.shields.io/badge/release-v1.2.1-orange)
+![Release](https://img.shields.io/badge/release-v1.2.2-orange)
 
 ---
 
