@@ -1,4 +1,4 @@
-# Video Codec Converter (VCC)
+# Video Codec Converter (VCC) [GNU/Linux version]
 
 <p align="center">
   <img src="icon.png" alt="VCC Logo" width="720" height="300">
@@ -40,52 +40,29 @@ A desktop GUI application for batch video transcoding using **FFmpeg**. VCC prov
 ---
 
 ## Installation for End Users
-
 ### Prerequisites
 
 | Requirement | Version | Download |
 |---|---|---|
-| **FFmpeg** | **8.x** (full build recommended) | [gyan.dev/ffmpeg](https://www.gyan.dev/ffmpeg/builds/) or [ffmpeg.org](https://ffmpeg.org/download.html) |
-| **Windows** | 10 or 11 (64-bit) | — |
+| **FFmpeg** | **8.x** (full build recommended) | sudo pacman -S ffmpeg-full |
+| **xcb-util-cursor** |  0.1.6-1 or higher | sudo pacman -S xcb-util-cursor |
 
 > **Important:** The full build is required (not essentials) to include all codec libraries.
 
 ### Step 1 — Install FFmpeg
-
-**Option A: Using winget (easiest)**
-```
-winget install ffmpeg
-```
-Verify:
-```
-ffmpeg -version
-```
-If you already have the lower version of the ffmpeg use:
-```
-winget upgrade ffmpeg
-```
-
-**Option B: Manual install**
-1. Download the latest **full_build** from [gyan.dev/ffmpeg/builds](https://www.gyan.dev/ffmpeg/builds/)
-2. Extract the archive (e.g. to `C:\ffmpeg`)
-3. Add the `bin` folder (`C:\ffmpeg\bin`) to your system **PATH**:
-   - Search "Environment Variables" in Windows Start menu
-   - Edit the `Path` variable under System variables
-   - Add `C:\ffmpeg\bin`
-4. Verify by opening a new Command Prompt and running:
-   ```
-   ffmpeg -version
-   ```
 
 > **Note:** VCC automatically detects FFmpeg in common locations including winget install paths.
 
 ### Step 2 — Download VCC
 
 1. Go to the [Releases](../../releases) page
-2. Download **`VideoCodecConverter.exe`** from the latest release
+2. Download **`VideoCodecConverter.appimage`** from the latest release
 3. Double-click to run — no installation needed
 
-> **Note:** Windows SmartScreen may show a warning the first time you run the EXE. Click **"More info" → "Run anyway"** to proceed.
+> **Note:** you must give execut permisssion to the appimage.
+```bash
+chmod +x VideoCodecConverter.appimage
+```
 
 ---
 
@@ -125,6 +102,7 @@ winget upgrade ffmpeg
 | Python | 3.12.x |
 | pip | Latest |
 | FFmpeg | 8.x (on PATH) |
+| xcb-util-cursor | Latest |
 
 ### Setup
 
@@ -134,29 +112,12 @@ cd VCC
 # Create virtual environment
 python -m venv venv
 
-# Activate (Windows)
-.\venv\Scripts\activate
+# Activate 
+source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
 ```
-
-### Run from Source
-
-```bash
-python run.pyw
-```
-
-### Build Standalone EXE
-
-```bash
-python build.py
-```
-
-The EXE will be created at `dist/VideoCodecConverter.exe`.
-
----
-
 ## Project Structure
 
 ```
@@ -171,26 +132,12 @@ VCC/
 │       ├── main_window.py      # Main application window
 │       ├── terminal_widget.py  # Embedded terminal output
 │       ├── help_dialogs.py     # Help dialog windows
-│       └── themes.py           # Light and dark theme stylesheets
-├── run.pyw                     # Entry point (no console window)
+│       └── themes.py           # Light and dark theme stylesheets                   
 ├── run.py                      # Entry point (with console, for debugging)
 ├── build.py                    # Build script
 ├── requirements.txt            # Python dependencies
 └── README.md                   # This file
 ```
-
----
-
-## Troubleshooting
-
-| Problem | Solution |
-|---|---|
-| EXE won't start, missing DLL error | Install [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) |
-| "ffmpeg is not recognized" | Add FFmpeg's `bin` folder to your system PATH and restart the terminal |
-| Windows SmartScreen blocks EXE | Click "More info" → "Run anyway" |
-| Encoding fails with codec error | Ensure you have the **full build** of FFmpeg (not essentials) which includes all codec libraries |
-| No GPU encoders in dropdown | Update GPU drivers. Use the **full build** of FFmpeg. Verify your GPU supports the encoder. |
-| GPU encoding fails | Update GPU drivers. Check NVIDIA/AMD/Intel driver versions. Try a different GPU preset. |
 
 ---
 
@@ -201,7 +148,7 @@ MIT License — free for personal and commercial use.
 ---
 
 ## Version History
-
+- **v1.2.2** — linux version, added darkmode auto detect for GTK and KDE, fixed help dialog not complying with global theme. 
 - **v1.2.1** — Auto-crop per file (detect and remove black bars via FFmpeg cropdetect), film grain synthesis control (SVT-AV1, 0–50), sharpness control (SVT-AV1 / VP9, 0–7), Film Grain and Sharpness help guides, subtitle auto-fix for MP4 containers
 - **v1.2** — Drag & drop file import, preset profiles (save/load/delete encoding settings), video trimming (start/end time), output format selection with codec-aware filtering (14 containers), concatenate/merge multiple files, batch progress bar, scroll-safe combo boxes, application icon on title bar and taskbar
 - **v1.1.1** — Fixed audio/subtitle dropdowns being editable, fixed OS dark theme interfering with app themes
