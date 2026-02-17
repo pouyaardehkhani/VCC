@@ -40,7 +40,9 @@ A desktop GUI application for batch video transcoding using **FFmpeg**. VCC prov
 ---
 
 ## Installation for End Users
-
+# Linux
+Thanks to [h21alborzi](https://github.com/h21alborzi), a linux build of the application is now available [here](https://github.com/pouyaardehkhani/VCC/tree/linux) on our linux branch, together with setup guide and AppImage.
+# Windows
 ### Prerequisites
 
 | Requirement | Version | Download |
