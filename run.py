@@ -3,9 +3,10 @@ Entry point for Video Codec Converter (VCC).
 """
 
 import sys
-import osimport sys
+from os import sys
 import os
 import traceback
+import platform
 from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtGui import QFont, QIcon
 from vcc.ui.main_window import MainWindow, _detect_system_dark_mode
@@ -33,7 +34,14 @@ def main():
     sys.excepthook = _global_exception_handler
 
     # Detect and set Qt platform plugin
-    os.environ["QT_QPA_PLATFORM"] = "xcb"
+    os_type=platform.system()
+    if os_type=="Windows":
+        os.environ["QT_QPA_PLATFORM"] = "windows:darkmode=0"
+    elif os_type=="Linux":
+        os.environ["QT_QPA_PLATFORM"] = "xcb"
+    else:
+        raise RuntimeError("Unsupported platform!")
+
 
     # Create QApplication
     app = QApplication(sys.argv)

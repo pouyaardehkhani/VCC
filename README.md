@@ -44,8 +44,8 @@ A desktop GUI application for batch video transcoding using **FFmpeg**. VCC prov
 
 | Requirement | Version | Download |
 |---|---|---|
-| **FFmpeg** | **8.x** (full build recommended) | ```sudo pacman -S ffmpeg-full``` |
-| **xcb-util-cursor** |  0.1.6-1 or higher | ```sudo pacman -S xcb-util-cursor``` |
+| **FFmpeg** | **8.x** (full build recommended) | sudo pacman -S ffmpeg-full |
+| **xcb-util-cursor** |  0.1.6-1 or higher | sudo pacman -S xcb-util-cursor |
 
 > **Important:** The full build is required (not essentials) to include all codec libraries.
 
@@ -93,7 +93,7 @@ chmod +x VideoCodecConverter.appimage
 
 ---
 
-# Building from Source (for Developers)
+## Building from Source (for Developers)
 
 ### Prerequisites
 
@@ -103,10 +103,8 @@ chmod +x VideoCodecConverter.appimage
 | pip | Latest |
 | FFmpeg | 8.x (on PATH) |
 | xcb-util-cursor | Latest |
-| pyinstaller| Latest|
-|appimagetool| Latest|
 
-### Python run setup
+### Setup
 
 ```bash
 cd VCC
@@ -120,74 +118,6 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 ```
-With the setup above you can run `run.py` and use the application.
-
-## Building the AppImage
-After you're done with code it's time to compile it to an AppImage. You will need:
-
-1. A ```.AppDir``` and its sub folders
-
-2. An executable file (made using `pyinstaller`)
-
-3. An `AppRun` file and a `.desktop` file
-
-4. AppImageTool
-
-### Step 1
-To create your executable file make sure you have **pyinstaller** installed and run:
-```bash
-pip install pyinstaller
-```
-```bash
-pyinstaller --onefile --name VCC run.py
-```
-This will compile our python code into a singular app named `VCC` found in **dist** folder
-
-### Step 2
-make this directory structure:
-```
-VCC.AppDir/
-├── AppRun         <- executable script
-├── usr/
-│   ├── bin/       <- place your PyInstaller executable here
-├── share/
-│   └── icons/     <- app icons
-└── vcc.desktop    <- desktop entry
-```
-now it's time to make AppRun and vcc.dektop files
-
-#### For AppRun:
-
-```bash
-#!/bin/bash
-HERE="$(dirname "$(readlink -f "${0}")")"
-export LD_LIBRARY_PATH="$HERE/usr/lib:$LD_LIBRARY_PATH"
-exec "$HERE/usr/bin/VCC" "$@"
-```
-#### For vcc.dektop:
-
-```bash
-[Desktop Entry]
-Name=VCC
-Exec=VCC
-Icon=icon
-Type=Application
-Categories=Utility;
-```
-### Step 3
-Time to compile into AppImage!
-
-```bash
-wget "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
-chmod +x appimagetool-x86_64.AppImage
-```
-Then just run:
-```bash
-./appimagetool-x86_64.AppImage VCC.AppDir
-```
-And here is our very own AppImage.
-
----
 ## Project Structure
 
 ```
